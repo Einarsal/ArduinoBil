@@ -1,34 +1,34 @@
+//main metoden
+
 #include "DriveController.h"
 #include "Definitions.h"
 #include "LineFollower.h"
 
 
-
+//om started == false ska bilen inte köra
 bool started;
+//används när ingen av sensorerna ger utslag
 int lastAction = straightforward;
+//används för att räta ut bilen. Då ska den svänga åt motsatta hållet tills den är rak
 bool lastDirection = LEFT;
 
 
 void setup() {
-    //serial begin använder 972 bytes av storage space och 175 bytes av dynamiskt minne. använd inte i onödan!
-    //Serial.begin(9600);
     driveControllerConstructor();
-
+    //använder pin 2 som startsignal. Om 2 inte är på ska den inte köra
     pinMode(startInput, INPUT);
-    analogWrite(A2, 255);
-
     started = false;
 }
 
 void loop() {
     if (!shouldRun())
     return;
-
     followLine();
 }
 
+//metoden tar reda på vart bilen ska svänga baserat på vilka sensorer som ger utslag.
+//kantsensorerna ska prioriteras.
 void followLine() {
-    //Serial.println("follow line");
     if (!shouldRun())  return;
     int triggeredDetector = foundCorner();
     if (triggeredDetector == -1){
@@ -42,22 +42,7 @@ void followLine() {
     }
 }
 
-//void turnLast(){
-//    stop();
-//    delay(100);
-//    if (lastAction == RIGHT){
-//        do{
-//            sharpRight();
-//        } while (foundCorner == -1);
-//        sharpCorner(RIGHT);
-//    } else{
-//        do{
-//            turnSharpLeft();
-//        } while (foundCorner == -1);
-//        sharpCorner(LEFT);
-//    }
-//}
-
+//anropar rätt metod för att svänga i DriveController.cpp bilen kan både svänga skarpt och svagt
 void turnAroundCorner(int triggeredDetecor) {
     switch (triggeredDetecor) {
         case sharpRight:
@@ -75,20 +60,20 @@ void turnAroundCorner(int triggeredDetecor) {
         case shallowRight:
         lastAction = shallowRight;
         lastDirection = RIGHT;
-        shallowCorner(RIGHT, false);
+        shallowCorner(RIGHT);
         break;
 
         case shallowLeft:
         lastAction =shallowLeft;
         lastDirection = LEFT;
-        shallowCorner(LEFT, false);
+        shallowCorner(LEFT);
         break;
     }
 }
 
-//skarp sväng har högst prio. ska alltid svänga skarpt om kan.
-
-void shallowCorner(int direction, bool straighten) {
+//denna metod anropar shallowRight eller shallowLeft i drivecontroller. Bilen ska bara svänga svagt om de yttre sensorerna är av.
+//Metoden används också till att räta ut bilen och kan anropas då av straightOut.
+void shallowCorner(int direction) {
     switch (direction) {
         case RIGHT:
         do {
@@ -109,17 +94,13 @@ void shallowCorner(int direction, bool straighten) {
             turnShallowLeft();
         }  while (!isDetected(midDetector));
         break;
-
     }
-
-
 }
 
-
+//anropar sharpLeft och shallowRight från drivecontroller.cpp. Eftersom skarpa svängar prioriteras ska bilen svänga skarpt tills något
+//annat sägs. Om de yttre sensorer slutar ge utslag kollar bilen om mitten är på och rätar därefter ut. Om inte kollar den om den ska
+//fortsätta svänga svagt och om inte går den tillbaks till followLine. Den går inte till loop för startkontrollen tar mycket tid
 void sharpCorner(int direction) {
-    //  stop();
-    //  delay(100);
-    // Serial.println(direction);
     switch (direction) {
         case RIGHT:
         do {
@@ -127,9 +108,6 @@ void sharpCorner(int direction) {
         } while (isDetected(rightEdgeDetector));
             if (isDetected(midDetector)) straightOut ();
             if(isDetected(rightMidDetector)) turnAroundCorner(shallowRight);
-
-
-        //turnAroundCorner(shallowRight);
         break;
 
         case LEFT:
@@ -138,24 +116,22 @@ void sharpCorner(int direction) {
         } while (isDetected(leftEdgeDetector));
             if (isDetected(midDetector)) straightOut ();
             if(isDetected(leftMidDetector)) turnAroundCorner(shallowLeft);
-
-        //turnAroundCorner(shallowLeft);
         break;
-
-        // default: break;
     }
     followLine();
 }
 
+//rätar ut bilen efter en sväng. Den kör rakt fram tills mitten slutar ge utslag och svänger därefter åt det motsatta hållet.
 void straightOut() {
     lastAction = straightforward;
     do {
         driveForward();
     } while (!isDetected(midDetector));
-    shallowCorner(!lastDirection, true);
+    shallowCorner(!lastDirection);
 }
 
-
+//kollar om pin 2 är high eller low. Om den är high och started är false kör den igång startsekvensen som ska vänta i 2 sekunder innan
+//bilen börjar köra.
 bool shouldRun() {
     if (started == false) {
         if (digitalRead(startInput) == HIGH) {
